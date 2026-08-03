@@ -4,10 +4,15 @@
 (Where you stand in the topology; what compounding move is active.)
 
 ## L2 Pending Decision
-(The high-stakes decision this work serves; its stakes.)
+Should Hermes Desktop become a Seed-native cockpit by fork, shipped integration,
+or neither? Fork only if the shipped Desktop cannot render `/Users/jryear/seed/seed.md`
+and write a delta into `inbox/` without core modification. This claimant remains
+in competition with the revenue-bearing client build and the live delegation-
+judgment defect.
 
 ## L1 Problem Class & Mode
-(Named problem class; constructive or limiting.)
+Desktop extension feasibility; limiting/falsification mode first. Run the cheapest
+read/write probe against the shipped shell before any constructive fork work.
 
 ## Assumptions Most Likely Wrong
 "Statute-form runtime docs cause interpretation drift" — falsified at this
