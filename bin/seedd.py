@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""seedd v0.2 — hardened commit loop.
+"""seedd v0.3 — hardened commit loop.
 
 Guarantees (v0 hazards closed):
   1. A delta enters the seed only if every [probe] line TRANSFERS.
@@ -13,6 +13,10 @@ Guarantees (v0 hazards closed):
      os.replace (atomic on POSIX); a pidfile lock prevents two seedd
      instances; merge happens BEFORE the delta leaves inbox/ and the
      field-merge is idempotent, so replaying after a crash is safe.
+  5. The headings already present in seed.md are the schema. Unknown
+     or duplicate delta headings HOLD instead of mutating state.
+  6. Probe directives never enter seed.md. Probe outcomes are appended
+     to evidence.jsonl while the original delta remains in history/.
 
 Usage:
   python3 bin/seedd.py          # watch loop
@@ -82,12 +86,27 @@ def git(*args):
 def commit(delta_path):
     delta = delta_path.read_text()
 
+    # Schema checks (cheap, before any model call)
+    names = FIELD.findall(delta)
+    if len(names) != len(set(names)):
+        hold(delta_path, "duplicate field headings in one delta — resolve the conflict explicitly")
+        return
+    known = set(parse(SEED.read_text())[1].keys())
+    unknown = set(names) - known
+    if unknown:
+        hold(delta_path,
+             f"unknown field(s): {', '.join(sorted(unknown))} — schema changes are manual: edit seed.md deliberately, then commit")
+        return
+
     reason = run_probes(delta)
     if reason:
         hold(delta_path, reason)
         return
 
-    merged = merge(SEED.read_text(), delta)
+    # Probe lines are directives, not carry text: strip from the projection,
+    # keep verbatim in history/; structured evidence lands in evidence.jsonl.
+    content = "\n".join(l for l in delta.splitlines() if not l.startswith("[probe]"))
+    merged = merge(SEED.read_text(), content)
     words = len(merged.split())
     if words > WORD_BOUND:
         hold(delta_path,
@@ -148,7 +167,7 @@ def main():
         if "--once" in sys.argv:
             single_pass()
             return
-        print(f"seedd v0.2 watching {INBOX}")
+        print(f"seedd v0.3 watching {INBOX}")
         while True:
             single_pass()
             time.sleep(2)

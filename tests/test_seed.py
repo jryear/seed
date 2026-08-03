@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reality audit for seed v0.2 — the 10-point test plan.
+"""Reality audit for seed v0.3 — 15 points exercised by 18 tests.
 
  1. one-time repository initialization
  2. valid field-level delta ingestion
@@ -11,6 +11,11 @@
  8. concurrent-delta handling (ordered, last-write-wins)
  9. carry-bound enforcement (blocks, seed untouched)
 10. clean handoff into the next session
+11. probe directives excluded from the carry projection
+12. structured probe evidence retained in append-only JSONL
+13. unknown fields held instead of extending the schema
+14. duplicate headings held instead of silently collapsing
+15. setup failure reported truthfully
 
 Run:  python3 tests/test_seed.py
 Uses a fake local Ollama server for probe tests — no models needed.
@@ -58,7 +63,7 @@ class SeedTest(unittest.TestCase):
         shutil.copytree(
             SRC, self.repo,
             ignore=shutil.ignore_patterns(".git", "tests", "history", "inbox",
-                                          "*.lock", "__pycache__"),
+                                          "*.lock", "__pycache__", "evidence.jsonl"),
         )
         (self.repo / "history").mkdir()
         (self.repo / "inbox").mkdir()
@@ -117,6 +122,7 @@ class SeedTest(unittest.TestCase):
             self.assertIn("committed", r.stdout)
         finally:
             srv.shutdown()
+            srv.server_close()
 
     def test_03b_probe_fragile_blocks(self):
         srv, url = start_fake_ollama("FRAGILE — conclusion diverges.")
@@ -131,6 +137,7 @@ class SeedTest(unittest.TestCase):
             self.assertIn("HELD:", held[0].read_text())
         finally:
             srv.shutdown()
+            srv.server_close()
 
     def test_03c_probe_unreachable_blocks(self):
         self.drop(DELTA + "[probe] claim A || claim A perturbed\n")
@@ -217,6 +224,84 @@ class SeedTest(unittest.TestCase):
             self.assertIn(f"## {field}", text)
         self.assertIn("Cycle one committed.", text)
         self.assertLessEqual(len(text.split()), 300)
+
+
+    # 11 — probe directives never enter the carry projection
+    def test_11_probe_lines_stripped(self):
+        srv, url = start_fake_ollama("TRANSFERS — holds either way.")
+        try:
+            self.drop("## L2 Pending Decision\nShip.\n[probe] claim A || claim A perturbed\n")
+            r = self.seedd({"OLLAMA_URL": url})
+            self.assertIn("committed", r.stdout)
+            self.assertNotIn("[probe]", self.seed_text())
+            hist = list((self.repo / "history").glob("*.md"))[0].read_text()
+            self.assertIn("[probe]", hist)  # verbatim in the archive
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    # 12 — probe evidence is retained as structured records, pass or fail
+    def test_12_evidence_retained(self):
+        srv, url = start_fake_ollama("TRANSFERS — same mechanism.")
+        try:
+            self.drop(DELTA + "[probe] claim A || claim A perturbed\n")
+            self.seedd({"OLLAMA_URL": url})
+        finally:
+            srv.shutdown()
+            srv.server_close()
+        rec = json.loads(
+            (self.repo / "evidence.jsonl").read_text().strip().splitlines()[-1])
+        self.assertEqual(rec["outcome"], "transfers")
+        for key in ("ts", "model", "claim", "perturbed",
+                    "answer_original", "answer_perturbed", "verdict"):
+            self.assertIn(key, rec)
+
+        srv, url = start_fake_ollama("FRAGILE — diverges.")
+        try:
+            self.drop(DELTA + "[probe] claim B || claim B perturbed\n")
+            self.seedd({"OLLAMA_URL": url})
+        finally:
+            srv.shutdown()
+            srv.server_close()
+        rec = json.loads(
+            (self.repo / "evidence.jsonl").read_text().strip().splitlines()[-1])
+        self.assertEqual(rec["outcome"], "fragile")
+
+    # 13 — unknown fields are rejected, not silently created
+    def test_13_unknown_field_held(self):
+        self.drop("## Brand New Field\nsurprise state\n")
+        r = self.seedd()
+        self.assertIn("HELD", r.stdout)
+        self.assertIn("unknown field", r.stdout)
+        self.assertNotIn("surprise state", self.seed_text())
+
+    # 14 — duplicate headings are a conflict, not a silent last-write
+    def test_14_duplicate_field_held(self):
+        self.drop("## L2 Pending Decision\nOption A\n\n## L2 Pending Decision\nOption B\n")
+        r = self.seedd()
+        self.assertIn("HELD", r.stdout)
+        self.assertIn("duplicate", r.stdout)
+        self.assertNotIn("Option", self.seed_text())
+
+    # 15 — setup.sh never claims readiness when git fails
+    def test_15_setup_truthful(self):
+        bindir = Path(self.tmp) / "fakebin"
+        bindir.mkdir()
+        fake = bindir / "git"
+        fake.write_text("#!/bin/sh\nexit 1\n")
+        fake.chmod(0o755)
+        env = dict(os.environ)
+        env["PATH"] = f"{bindir}:{env['PATH']}"
+        fresh = Path(self.tmp) / "fresh"
+        shutil.copytree(
+            SRC, fresh,
+            ignore=shutil.ignore_patterns(".git", "tests", "history", "inbox",
+                                          "*.lock", "__pycache__", "evidence.jsonl"))
+        r = subprocess.run(["bash", "setup.sh"], cwd=fresh,
+                           capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn("ready", r.stdout)
+        self.assertIn("FAILED", r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

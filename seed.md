@@ -13,14 +13,11 @@ Priority arbitration after a passed limiting test. Constructive Desktop work is
 not authorized by the probe alone; it must now beat the other live claimants.
 
 ## Assumptions Most Likely Wrong
-"A Seed-native cockpit requires owning the Hermes Desktop shell" — falsified.
-The shipped app already provides the minimum read/write cockpit. A desktop plugin
-may improve ergonomics, but it is not evidence for a fork.
+"The seed loop implementation was proven by 13 tests" — falsified; first
+external audit found 6 holes the suite missed. Current version: test suites
+prove what their author imagined, not what an adversary finds.
 
 ## Last Delta & Observed Result
-Hermes Desktop, as shipped, opened external `/Users/jryear/seed/seed.md` in its
-Preview pane and wrote this delta into `/Users/jryear/seed/inbox/` through the
-existing agent file surface. No fork, core modification, plugin, or custom build
-was required. The fork gate fails: cycle two is not a fork. The remaining
-constructive option is a thin shipped-surface integration only if it beats the
-revenue-bearing client build and the live delegation-judgment defect.
+Graph agent audit: 6 real defects confirmed, fixed in v0.3 (18/18 tests).
+Probe evidence now durable in evidence.jsonl. Graph-kernel proposal shelved
+with explicit trigger: repeated query demand flat files can't serve.
