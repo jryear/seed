@@ -15,12 +15,14 @@ Desktop extension feasibility; limiting/falsification mode first. Run the cheape
 read/write probe against the shipped shell before any constructive fork work.
 
 ## Assumptions Most Likely Wrong
-"Statute-form runtime docs cause interpretation drift" — falsified at this
-scale (Claude's claim, my test). New leading candidate: delegation judgment
-is a spec or capability gap, not a format gap.
+"A Seed-native cockpit requires owning the Hermes Desktop shell" — falsified.
+The shipped app already provides the minimum read/write cockpit. A desktop plugin
+may improve ergonomics, but it is not evidence for a fork.
 
 ## Last Delta & Observed Result
-Spike 001: Junior protocol compiled to 5 invariants + 5 traces; 8 held-out
-tasks, 2 blind judge passes. 29.5/32 both forms, 0 wins, 8 ties. Verdict:
-prose stays, live runtime unmodified. Exemplar non-inferior at 30% length —
-shelved as context-budget option. Shared weakness in both: delegation judgment.
+Hermes Desktop, as shipped, opened external `/Users/jryear/seed/seed.md` in its
+Preview pane and wrote this delta into `/Users/jryear/seed/inbox/` through the
+existing agent file surface. No fork, core modification, plugin, or custom build
+was required. The fork gate fails: cycle two is not a fork. The remaining
+constructive option is a thin shipped-surface integration only if it beats the
+revenue-bearing client build and the live delegation-judgment defect.
