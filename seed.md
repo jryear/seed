@@ -4,15 +4,13 @@
 (Where you stand in the topology; what compounding move is active.)
 
 ## L2 Pending Decision
-Should Hermes Desktop become a Seed-native cockpit by fork, shipped integration,
-or neither? Fork only if the shipped Desktop cannot render `/Users/jryear/seed/seed.md`
-and write a delta into `inbox/` without core modification. This claimant remains
-in competition with the revenue-bearing client build and the live delegation-
-judgment defect.
+Which claimant earns the next cycle: the revenue-bearing client build, analysis
+of the live delegation-judgment defect, a thin no-fork Desktop integration, or
+none? The Hermes Desktop fork is eliminated by the shipped-surface probe.
 
 ## L1 Problem Class & Mode
-Desktop extension feasibility; limiting/falsification mode first. Run the cheapest
-read/write probe against the shipped shell before any constructive fork work.
+Priority arbitration after a passed limiting test. Constructive Desktop work is
+not authorized by the probe alone; it must now beat the other live claimants.
 
 ## Assumptions Most Likely Wrong
 "A Seed-native cockpit requires owning the Hermes Desktop shell" — falsified.
