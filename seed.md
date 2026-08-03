@@ -10,7 +10,12 @@
 (Named problem class; constructive or limiting.)
 
 ## Assumptions Most Likely Wrong
-(Ranked. These are the perturbation targets.)
+"Statute-form runtime docs cause interpretation drift" — falsified at this
+scale (Claude's claim, my test). New leading candidate: delegation judgment
+is a spec or capability gap, not a format gap.
 
 ## Last Delta & Observed Result
-(What shifted last session; what the outcome showed.)
+Spike 001: Junior protocol compiled to 5 invariants + 5 traces; 8 held-out
+tasks, 2 blind judge passes. 29.5/32 both forms, 0 wins, 8 ties. Verdict:
+prose stays, live runtime unmodified. Exemplar non-inferior at 30% length —
+shelved as context-budget option. Shared weakness in both: delegation judgment.

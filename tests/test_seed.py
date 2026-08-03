@@ -103,6 +103,9 @@ class SeedTest(unittest.TestCase):
         self.assertIn("Ship the seed loop.", self.seed_text())
         self.assertEqual(list((self.repo / "inbox").glob("*")), [])
         self.assertEqual(len(list((self.repo / "history").glob("*.md"))), 1)
+        status = sh(self.repo, "git", "status", "--porcelain")
+        self.assertEqual(status.returncode, 0)
+        self.assertEqual(status.stdout.strip(), "")
 
     # 3 — probe behavior
     def test_03a_probe_transfers(self):
