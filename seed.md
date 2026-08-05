@@ -1,16 +1,16 @@
 # Seed — v0
 
 ## L4 Position & Trajectory
-The first real Junior chain preserved the canonical no-cut boundary and correctly withheld Builder when implementation authority was absent. Decision and authority continuity passed; artifact routing exposed one corrected duplicate-path failure. Cargo failed because the run produced neither a new Saturn artifact nor a decision that changed permissible action. Setup remains closed; the next attempt must begin from a write-authorized cargo candidate.
+The second Junior pilot is the first dual-gate success: the manual Operator → clean Frontier → Operator → Builder chain preserved decision and authority boundaries while shipping a runnable fixture-only shared-demand-board prototype. Canonical file carry recovered one direct Hermes multiline transport failure. Architecture remains frozen; the active move is reality contact with an actual Saturn operator before any extension, integration, or new infrastructure.
 
 ## L2 Pending Decision
-Which write-authorized Saturn artifact with a known repository baseline, bounded acceptance test, and independent value earns the next pilot attempt? Number Authority is ineligible absent new authoritative event evidence. The shared-demand board remains eligible only after its repository and write scope are explicit; None remains valid.
+Does one observed Saturn-operator use session establish enough independent utility to extend or promote the shared-demand-board prototype, or should it be preserved as completed cargo and stopped? Prototype completion alone authorizes no feature expansion, live-data integration, deployment, child Seed, or transport automation.
 
 ## L1 Problem Class & Mode
-Manual validation of a hierarchical cross-runtime personal operating architecture. Constructive protocol under a dual gate: continuity and real-world cargo must both succeed before infrastructure expands.
+Reality-contact validation of the first successful Saturn cargo. Limiting before constructive: test operator usefulness before authorizing further implementation.
 
 ## Assumptions Most Likely Wrong
-Manual packet and return handling is tolerable enough for the first test; Main can carry the pilot without an immediate Saturn Seed; profile and context separation materially reduce leakage; and the architecture will remain support rather than becoming a substitute for work.
+Successful local execution predicts actual Saturn usefulness; direct Hermes multiline transport is adequate for cross-session returns; or one successful cargo cycle proves the broader operating architecture rather than only this bounded chain.
 
 ## Last Delta & Observed Result
-Operator selected Launch Saturn Gate 4 Number Authority. A verified-clean Frontier session found that policy was established but implementation authority was not. Operator preserved the existing no-cut decision and withheld Builder; no Saturn product source changed. Reconciliation classified the run as decision-continuity success and cargo failure. One duplicate return was written into GoBird, removed, and the canonical return retained.
+Operator selected the fixture-only shared-demand-board candidate. Clean Frontier narrowed its semantics to one Post model with want or offering type, open or closed state, and post-level comments. Operator preserved the target and authority; Builder shipped create, list, comment, close, reopen, and localStorage persistence. Verification passed 5/5 tests, HTTP serving, desktop and 390×844 browser workflows, reload persistence, and visible no-live-member-data labeling. One multiline Frontier return split into 21 Hermes messages, but canonical file carry preserved the complete input. No deployment, live-data integration, artifact commit, or Seed ingestion occurred.
