@@ -1,10 +1,10 @@
 # Seed — v0
 
 ## L4 Position & Trajectory
-The Junior pilot now has a dedicated, non-cloned Hermes state home isolated from both existing Hermes lineages. Operator runs as the default profile through one explicit launcher; Frontier and Builder remain clean shells or native surfaces. Setup is closed unless the dedicated launcher fails. The active move is now real Saturn cargo through the manual Operator → Frontier → Builder protocol.
+The first real Junior chain preserved the canonical no-cut boundary and correctly withheld Builder when implementation authority was absent. Decision and authority continuity passed; artifact routing exposed one corrected duplicate-path failure. Cargo failed because the run produced neither a new Saturn artifact nor a decision that changed permissible action. Setup remains closed; the next attempt must begin from a write-authorized cargo candidate.
 
 ## L2 Pending Decision
-Which real Saturn artifact or operating decision earns today’s pilot, and can it ship through the three-profile protocol with both independent real-world value and traceable continuity value?
+Which write-authorized Saturn artifact with a known repository baseline, bounded acceptance test, and independent value earns the next pilot attempt? Number Authority is ineligible absent new authoritative event evidence. The shared-demand board remains eligible only after its repository and write scope are explicit; None remains valid.
 
 ## L1 Problem Class & Mode
 Manual validation of a hierarchical cross-runtime personal operating architecture. Constructive protocol under a dual gate: continuity and real-world cargo must both succeed before infrastructure expands.
@@ -13,4 +13,4 @@ Manual validation of a hierarchical cross-runtime personal operating architectur
 Manual packet and return handling is tolerable enough for the first test; Main can carry the pilot without an immediate Saturn Seed; profile and context separation materially reduce leakage; and the architecture will remain support rather than becoming a substitute for work.
 
 ## Last Delta & Observed Result
-A runtime audit found two Hermes versions sharing a recently used state lineage, cloning behavior that copied memory and skill state, reused OAuth credentials, and a named-profile path defect. The pilot was moved to a dedicated non-cloned state home. Its default Operator passed a live isolation smoke with one attributable session and no memory or custom-skill state. No Saturn cargo result has yet been produced.
+Operator selected Launch Saturn Gate 4 Number Authority. A verified-clean Frontier session found that policy was established but implementation authority was not. Operator preserved the existing no-cut decision and withheld Builder; no Saturn product source changed. Reconciliation classified the run as decision-continuity success and cargo failure. One duplicate return was written into GoBird, removed, and the canonical return retained.
