@@ -1,23 +1,16 @@
 # Seed — v0
 
 ## L4 Position & Trajectory
-(Where you stand in the topology; what compounding move is active.)
+The cross-runtime ontology is adopted as a manual protocol, not infrastructure. Main remains the only canonical Seed while Operator, Frontier, and Builder are configured as runtime contracts. The first test must move real Saturn cargo; child Seeds and automation are earned only by observed state collision or repeated material friction.
 
 ## L2 Pending Decision
-Which claimant earns the next cycle: the revenue-bearing client build, analysis
-of the live delegation-judgment defect, a thin no-fork Desktop integration, or
-none? The Hermes Desktop fork is eliminated by the shipped-surface probe.
+Can the manual three-profile protocol ship one verified Saturn artifact or operating decision while producing traceable continuity value, without architecture work displacing the cargo? What observed collision or repeated friction, if any, justifies the first child Seed or transport automation?
 
 ## L1 Problem Class & Mode
-Priority arbitration after a passed limiting test. Constructive Desktop work is
-not authorized by the probe alone; it must now beat the other live claimants.
+Manual validation of a hierarchical cross-runtime personal operating architecture. Constructive protocol under a dual gate: continuity and real-world cargo must both succeed before infrastructure expands.
 
 ## Assumptions Most Likely Wrong
-"The seed loop implementation was proven by 13 tests" — falsified; first
-external audit found 6 holes the suite missed. Current version: test suites
-prove what their author imagined, not what an adversary finds.
+Manual packet and return handling is tolerable enough for the first test; Main can carry the pilot without an immediate Saturn Seed; profile and context separation materially reduce leakage; and the architecture will remain support rather than becoming a substitute for work.
 
 ## Last Delta & Observed Result
-Graph agent audit: 6 real defects confirmed, fixed in v0.3 (18/18 tests).
-Probe evidence now durable in evidence.jsonl. Graph-kernel proposal shelved
-with explicit trigger: repeated query demand flat files can't serve.
+Architecture self-audit accepted the six-coordinate session ontology and rejected prebuilt hierarchy, registry, adapter, embedding, and orchestration infrastructure. It required manual operation, per-surface clean-mode verification, semantic promotion, and useful Saturn cargo. No implementation or cargo result has yet been observed.
