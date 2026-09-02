@@ -1,0 +1,43 @@
+#!/bin/zsh -f
+set -euo pipefail
+
+launcher_dir="${0:A:h}"
+tmux_binary="/opt/homebrew/bin/tmux"
+tmux_session="junior-sterile"
+
+# Read-only commands do not need a persistent terminal session.
+for argument in "$@"; do
+  if [[ "$argument" == "--preflight" || "$argument" == "--help" || "$argument" == "-h" ]]; then
+    exec /usr/bin/python3 "$launcher_dir/junior.py" "$@"
+  fi
+done
+
+# Fall back to direct execution if tmux is ever removed. Codex session
+# continuity still works because junior.py resumes from the isolated store.
+if [[ ! -x "$tmux_binary" ]]; then
+  exec /usr/bin/python3 "$launcher_dir/junior.py" "$@"
+fi
+
+if "$tmux_binary" has-session -t "=$tmux_session" 2>/dev/null; then
+  if [[ "${1:-}" == "--new" ]]; then
+    print -u2 "ERROR: Junior is already running; exit it before starting a new thread."
+    exit 1
+  fi
+  if (( $# > 0 )); then
+    print -u2 "ERROR: Junior is already running; exit it before relaunching with options."
+    exit 1
+  fi
+  if [[ -n "${TMUX:-}" ]]; then
+    exec "$tmux_binary" switch-client -t "=$tmux_session"
+  fi
+  exec "$tmux_binary" attach-session -t "=$tmux_session"
+fi
+
+if [[ -n "${TMUX:-}" ]]; then
+  "$tmux_binary" new-session -d -s "$tmux_session" -c "$launcher_dir/.junior/workspace" \
+    /usr/bin/python3 "$launcher_dir/junior.py" "$@"
+  exec "$tmux_binary" switch-client -t "=$tmux_session"
+fi
+
+exec "$tmux_binary" new-session -s "$tmux_session" -c "$launcher_dir/.junior/workspace" \
+  /usr/bin/python3 "$launcher_dir/junior.py" "$@"
