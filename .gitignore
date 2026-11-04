@@ -7,3 +7,6 @@ __pycache__/
 # Agent runtime scratch state (332M: codex-home, logs, quarantine,
 # sterile session logs w/ auth tokens, nested git repos). Not source.
 .junior/
+
+# runtime-abstraction experiment: memoized task data
+experiments/runtime-abstraction/.taskcache/
