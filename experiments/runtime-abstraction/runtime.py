@@ -56,8 +56,26 @@ def sha(*parts):
 
 
 # ---------------------------------------------------------------- shell arms
+# Containment for shell arms: each command runs in a private mount namespace in
+# which /home/user, /root and the harness tree (/tmp/claude-0) are empty tmpfs,
+# with only the workspace bind-mounted back at its own path. The host stays
+# visible to the supervisor; the agent sees its workspace and system binaries.
+JAIL = r"""set -e
+mkdir -p /run/rtjail/$$ && mount --bind "$RT_WS" /run/rtjail/$$
+for d in /home/user /root /tmp/claude-0; do [ -d "$d" ] && mount -t tmpfs none "$d"; done
+mkdir -p "$RT_WS" && mount --bind /run/rtjail/$$ "$RT_WS" && umount -l /run/rtjail/$$
+cd "$RT_WS"; set +e; exec bash -c "$RT_CMD"
+"""
+SANDBOX = os.environ.get("RT_SANDBOX", "1") == "1"
+
+
 def t_sh(command):
-    p = subprocess.run(["bash", "-c", command], cwd=WS, capture_output=True, text=True, timeout=180)
+    if SANDBOX:
+        argv = ["unshare", "-m", "--propagation", "private", "bash", "-c", JAIL]
+        env = dict(os.environ, RT_WS=str(WS), RT_CMD=command, HOME=str(WS))
+    else:
+        argv, env = ["bash", "-c", command], None
+    p = subprocess.run(argv, cwd=WS, env=env, capture_output=True, text=True, timeout=180)
     out = (p.stdout + p.stderr)[-8000:]
     meta = {"spawns": 1, "normalize_ok": p.returncode == 0 and "normalize" in command}
     return {"exit_code": p.returncode, "output": out}, meta

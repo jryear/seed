@@ -97,7 +97,7 @@ def run_session(trial, arm, model, session, prompt, interrupt):
         "args": [str(HERE / "runtime.py"), "--arm", arm, "--workspace", str(trial / "ws"),
                  "--store", str(trial / "store"), "--log", str(trial / "calls.jsonl"),
                  "--deliver-to", str(trial / "delivered.json")],
-        "env": {"RT_SESSION": str(session)}}}}
+        "env": {"RT_SESSION": str(session), "RT_SANDBOX": "1" if SANDBOX else "0"}}}}
     (trial / "mcp.json").write_text(json.dumps(cfg))
     cwd = trial / "ws" if arm.startswith("shell") else trial / "empty"
     cwd.mkdir(exist_ok=True)
@@ -194,7 +194,7 @@ def trial_run(args, arm, condition, rep):
     report = trial / ("ws/out/report.json" if arm.startswith("shell") else "delivered.json")
     passed, reasons = task.grade(report, truth)
     calls = _calls(trial)
-    rec = {"arm": arm, "condition": condition, "rep": rep, "model": args.model,
+    rec = {"arm": arm, "condition": condition, "rep": rep, "model": args.model, "sandbox": SANDBOX,
            "passed": passed, "fail_reasons": reasons, "sessions": sessions,
            "wall": round(sum(s["wall"] for s in sessions), 2),
            "tool_calls": len(calls), "tool_errors": sum(c["is_error"] for c in calls),
@@ -224,6 +224,7 @@ def _outside(calls, arm):
 
 
 LOCK = threading.Lock()
+SANDBOX = os.environ.get("RT_SANDBOX", "1") == "1"
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
