@@ -56,14 +56,18 @@ def sha(*parts):
 
 
 # ---------------------------------------------------------------- shell arms
-# Containment for shell arms: each command runs in a private mount namespace in
-# which /home/user, /root and the harness tree (/tmp/claude-0) are empty tmpfs,
-# with only the workspace bind-mounted back at its own path. The host stays
-# visible to the supervisor; the agent sees its workspace and system binaries.
+# Containment for shell arms: each command runs in a private mount namespace.
+# /tmp is replaced by a per-trial directory that persists across commands and
+# sessions (like a real disk), /home/user and /root are empty tmpfs, and only
+# the workspace is bind-mounted back at its own path. The host and the harness
+# stay visible to the supervisor, not to the agent.
 JAIL = r"""set -e
-mkdir -p /run/rtjail/$$ && mount --bind "$RT_WS" /run/rtjail/$$
-for d in /home/user /root /tmp/claude-0; do [ -d "$d" ] && mount -t tmpfs none "$d"; done
-mkdir -p "$RT_WS" && mount --bind /run/rtjail/$$ "$RT_WS" && umount -l /run/rtjail/$$
+J=/run/rtjail/$$; mkdir -p $J/ws $J/tmp
+mount --bind "$RT_WS" $J/ws; mount --bind "$RT_TMP" $J/tmp
+mount --bind $J/tmp /tmp
+for d in /home/user /root; do [ -d "$d" ] && mount -t tmpfs none "$d"; done
+mkdir -p "$RT_WS" && mount --bind $J/ws "$RT_WS"
+umount -l $J/ws $J/tmp
 cd "$RT_WS"; set +e; exec bash -c "$RT_CMD"
 """
 SANDBOX = os.environ.get("RT_SANDBOX", "1") == "1"
@@ -72,7 +76,9 @@ SANDBOX = os.environ.get("RT_SANDBOX", "1") == "1"
 def t_sh(command):
     if SANDBOX:
         argv = ["unshare", "-m", "--propagation", "private", "bash", "-c", JAIL]
-        env = dict(os.environ, RT_WS=str(WS), RT_CMD=command, HOME=str(WS))
+        jtmp = STORE.parent / "jailtmp"
+        jtmp.mkdir(exist_ok=True)
+        env = dict(os.environ, RT_WS=str(WS), RT_TMP=str(jtmp), RT_CMD=command, HOME=str(WS))
     else:
         argv, env = ["bash", "-c", command], None
     p = subprocess.run(argv, cwd=WS, env=env, capture_output=True, text=True, timeout=180)
