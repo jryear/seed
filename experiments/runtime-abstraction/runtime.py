@@ -30,6 +30,7 @@ ap.add_argument("--workspace", required=True)   # shell arms: agent's cwd. cap a
 ap.add_argument("--store", required=True)       # service store; survives agent interruption
 ap.add_argument("--log", required=True)
 ap.add_argument("--deliver-to", required=True)  # where the graded report lands
+ap.add_argument("--task", type=int, default=1)  # 2 adds the derive escape hatch to cap arms
 A = ap.parse_args()
 WS, STORE, LOG, OUT = Path(A.workspace), Path(A.store), Path(A.log), Path(A.deliver_to)
 STORE.mkdir(parents=True, exist_ok=True)
@@ -313,6 +314,85 @@ def t_transition(capability, inputs):
             "summary": summary}, meta
 
 
+DERIVE_HARNESS = r"""import json, traceback
+src = open("program.py").read()
+inputs = json.load(open("inputs.json"))
+try:
+    g = {}
+    exec(compile(src, "<program>", "exec"), g)
+    print(json.dumps({"ok": True, "value": g["run"](inputs)}))
+except Exception as e:
+    tb = [f for f in traceback.extract_tb(e.__traceback__) if f.filename == "<program>"]
+    print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"[:600],
+                      "program_line": tb[-1].lineno if tb else None}))
+"""
+OS_REACH = re.compile(r"(\bimport os\b|\bfrom os\b|subprocess|pathlib|\bopen\(|__import__|socket|shutil|\bglob\b)")
+
+
+def _decode(ref):
+    kind, f = _resolve(ref)
+    if kind is None:
+        return None
+    if kind in ("ledger", "normalized_ledger"):
+        lines = f.read_text().splitlines()
+        fields = lines[1].split(",")
+        return {"kind": kind, "region": lines[0].split("=", 1)[1], "fields": fields,
+                "rows": [dict(zip(fields, x.split(","))) for x in lines[2:]]}
+    if kind == "rates":
+        return {"kind": kind, "as_of": ref.split(":", 1)[1],
+                "usd_per_unit": {c: float(v) for c, v in (x.split(",") for x in f.read_text().splitlines()[1:])}}
+    return {"kind": kind, "content": json.loads(f.read_text())}
+
+
+def t_derive(program, inputs, produces):
+    meta = {"escape_hatch": True, "os_reach": bool(OS_REACH.search(program))}
+    if produces not in ("report", "data"):
+        return {"ok": False, "failure": "bad_inputs", "detail": "produces must be 'report' or 'data'"}, meta
+    if not isinstance(inputs, list):
+        return {"ok": False, "failure": "bad_inputs", "detail": "inputs must be a list of ids"}, meta
+    decoded = {}
+    for ref in inputs:
+        d = _decode(str(ref))
+        if d is None:
+            return {"ok": False, "failure": "no_such_state", "detail": str(ref)}, meta
+        decoded[str(ref)] = d
+    blob = json.dumps(decoded, sort_keys=True)
+    key = sha("derive", program, produces, blob)
+    ix = _index()
+    if A.arm == "cap_svc":
+        hit = next((sid for sid, s in ix.items() if s.get("key") == key), None)
+        if hit:
+            meta["cache"] = "hit"
+            return {"ok": True, "state": hit, "kind": produces, "executed": False, "verified": False}, meta
+    run = Path(tempfile.mkdtemp(prefix="derive-", dir=WORK))
+    (run / "program.py").write_text(program)
+    (run / "inputs.json").write_text(blob)
+    (run / "harness.py").write_text(DERIVE_HARNESS)
+    jtmp = Path(tempfile.mkdtemp(prefix="dtmp-", dir=WORK))
+    env = dict(os.environ, RT_WS=str(run), RT_TMP=str(jtmp), HOME=str(run),
+               RT_CMD=f"{sys.executable} -I harness.py")
+    try:
+        p = subprocess.run(["unshare", "-m", "--propagation", "private", "bash", "-c", JAIL],
+                           cwd=run, env=env, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "failure": "timeout", "detail": "program exceeded 120 s"}, dict(meta, spawns=1)
+    meta["spawns"] = 1
+    try:
+        res = json.loads(p.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return {"ok": False, "failure": "program_crashed", "detail": p.stderr[-400:]}, meta
+    if not res["ok"]:
+        return {"ok": False, "failure": "program_error", "detail": res["error"],
+                "program_line": res["program_line"]}, meta
+    sid = "st_" + sha(key, time.time())[:10]
+    (SDIR / f"{sid}.dat").write_text(json.dumps(res["value"]))
+    ix[sid] = {"kind": produces, "file": f"{sid}.dat", "key": key if A.arm == "cap_svc" else None,
+               "from": {"capability": "derive", "inputs": inputs, "program_sha": sha(program)[:10]},
+               "summary": {"verified": False}, "session": SESSION, "label": ""}
+    _save_index(ix)
+    return {"ok": True, "state": sid, "kind": produces, "executed": True, "verified": False}, meta
+
+
 def t_inspect(state):
     ix = _index()
     if state.startswith(("ledger:", "rates:")):
@@ -329,7 +409,7 @@ def t_inspect(state):
         return {"ok": False, "failure": "no_such_state"}, {}
     s = ix[state]
     res = {"state": state, "kind": s["kind"], "derived_from": s["from"], "summary": s["summary"]}
-    if s["kind"] == "report":
+    if s["kind"] in ("report", "data"):
         res["content"] = json.loads((SDIR / s["file"]).read_text())
     return res, {}
 
@@ -352,7 +432,8 @@ def t_deliver(state):
             return {"accepted": False, "failure": "postcondition_violated", "problems": probs}, {}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(report))
-    return {"accepted": True, "verified": A.arm == "cap_svc"}, {"delivered": True}
+    src = _index().get(state, {}).get("from", {}).get("capability")
+    return {"accepted": True, "verified": A.arm == "cap_svc"}, {"delivered": True, "delivered_from": src}
 
 
 # ------------------------------------------------------------------ catalog
@@ -386,6 +467,16 @@ TOOLS["shell_svc"] = dict(TOOLS["shell"], **{
 TOOLS["cap_svc"] = dict(TOOLS["cap"], progress=(
     t_progress, "List states that exist for this objective, including from earlier sessions, "
     "with provenance. Transitions are cached on their real inputs; repeats may not execute.", S()))
+if A.task == 2:
+    for arm in ("cap", "cap_svc"):
+        TOOLS[arm]["derive"] = (t_derive, (
+            "Escape hatch for when no capability fits: run your own Python over the contents of "
+            "states and resources. Define run(inputs) returning a JSON-serializable value; inputs "
+            "maps each given id to its decoded content (ledgers: {region, fields, rows: [{field: "
+            "value}]}; rates: {as_of, usd_per_unit}; reports/data: {content}). The value becomes a "
+            "new state of kind `produces` ('report' or 'data'). The program sees only its inputs, "
+            "and the runtime does not verify its result."),
+            S(program=STR, inputs=LST, produces=STR))
 ACTIVE = TOOLS[A.arm]
 
 
@@ -421,7 +512,7 @@ for line in sys.stdin:
                 res, meta = {"error": f"{type(e).__name__}: {e}"}, {"exception": True}
         err = bool(res.get("error")) or res.get("ok") is False or res.get("accepted") is False \
             or (isinstance(res.get("exit_code"), int) and res["exit_code"] != 0)
-        log({"tool": name, "args": json.dumps(args)[:300], "is_error": err,
+        log({"tool": name, "args": json.dumps(args)[:6000], "is_error": err,
              "dur": round(time.time() - t0, 3), "worker_cpu": round(child_cpu() - c0, 3), **meta})
         send({"jsonrpc": "2.0", "id": mid, "result": {
             "content": [{"type": "text", "text": json.dumps(res)}], "isError": False}})

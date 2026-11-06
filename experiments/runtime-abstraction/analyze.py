@@ -88,10 +88,11 @@ def fmt(xs, f="{:.1f}"):
 
 def main(dirs):
     recs = load(dirs)
-    models = sorted({r["model"] for r in recs})
-    out = [f"Trials: {len(recs)}  ·  models: {', '.join(models)}  ·  cells show median [min–max]\n"]
-    for model in models:
-        mr = [r for r in recs if r["model"] == model]
+    models = sorted({(r["model"], r.get("task", 1)) for r in recs})
+    out = [f"Trials: {len(recs)}  ·  cells show median [min–max]\n"]
+    for model_id, tsk in models:
+        model = f"{model_id} · task {tsk}"
+        mr = [r for r in recs if r["model"] == model_id and r.get("task", 1) == tsk]
         for cond in ["clean", "interrupted"]:
             out.append(f"\n### {model} — {cond}\n")
             out.append("| arm | n | pass | wall s | tool-subtree CPU s | normalize procs (strace) | "
@@ -119,6 +120,22 @@ def main(dirs):
             out.append(f"| {arm} | {len(k)}/{len(c)} | {fmt([m['s2_norm'] for m in k], '{:.0f}')} | "
                        f"{sum(1 for m in k if (m['s2_norm'] or 0) >= 8)}/{len(k)} | "
                        f"{sum(m['used_services'] for m in c):.0f}/{len(c)} |")
+        if tsk == 2:
+            out.append(f"\n### {model} — off-catalog work (escape hatch / own code)\n")
+            out.append("| arm | condition | pass | escape-hatch calls | escape-hatch errors | "
+                       "hatch programs touching OS | delivered via derive | shell own-code calls |")
+            out.append("|---|---|---|---|---|---|---|---|")
+            for arm in ARMS:
+                for cond in ["clean", "interrupted"]:
+                    c = cell(mr, arm, cond)
+                    if not c:
+                        continue
+                    f = lambda k: fmt([r.get(k, 0) for r in c], "{:.0f}")  # noqa: E731
+                    out.append(f"| {arm} | {cond} | {sum(r['passed'] for r in c)}/{len(c)} | "
+                               f"{f('escape_hatch_calls')} | {f('escape_hatch_errors')} | "
+                               f"{f('escape_hatch_os_reach')} | "
+                               f"{sum(1 for r in c if r.get('delivered_from') == 'derive')}/{len(c)} | "
+                               f"{f('shell_own_code_calls')} |")
         # 2x2 contrasts
         out.append(f"\n### {model} — contrasts (mean difference, 95% bootstrap CI)\n")
         out.append("| contrast | condition | wall s | tool CPU s | tool calls | pass rate |")

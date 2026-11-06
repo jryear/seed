@@ -13,11 +13,12 @@ def main():
     if not lines or not lines[0].startswith("#region="):
         print(f"{src}: first line must be '#region=<name>'", file=sys.stderr); return 2
     region, header, rows = lines[0], lines[1], lines[2:]
+    ncols = len(header.split(","))  # 5, or 6 when transactions carry a date
     bad, good = [], []
     for i, line in enumerate(rows, start=3):
         f = line.split(",")
         try:
-            assert len(f) == 5 and f[3] in ("USD", "EUR", "GBP", "JPY")
+            assert len(f) == ncols and f[3] in ("USD", "EUR", "GBP", "JPY")
             float(f[2])
             good.append(f)
         except (AssertionError, ValueError):

@@ -49,11 +49,30 @@ OBJECTIVE = (
 )
 
 
-def _rows(rng, region):
+OBJECTIVE_2 = (
+    "Produce the monthly regional revenue report. For every regional sales ledger: "
+    "deduplicate and normalize its transactions, then convert each transaction to USD "
+    "using the exchange-rate table for the month in which that transaction occurred, and "
+    "report USD revenue per region per month, plus a grand total. Shape: "
+    '{"regions": {"<region>": {"<YYYY-MM>": <usd>, ...}, ...}, "grand_total_usd": <usd>}, '
+    "amounts rounded to cents. Deliver the report as the result of this objective. "
+    "Every region must be included."
+)
+MONTH_RATES = {"2026-10": RATES_OLD, "2026-11": RATES_NEW}
+
+
+def objective(variant):
+    return OBJECTIVE if variant == 1 else OBJECTIVE_2
+
+
+def _rows(rng, region, variant=1):
     rows, n = [], 160
     for i in range(n):
         txn, amt = f"{region[:2].upper()}{i:04d}", f"{rng.uniform(5, 900):.2f}"
-        rows.append([txn, rng.choice(PRODUCTS), amt, rng.choice(CURRENCIES), fingerprint(txn, amt)])
+        row = [txn, rng.choice(PRODUCTS), amt, rng.choice(CURRENCIES), fingerprint(txn, amt)]
+        if variant == 2:
+            row.append(f"2026-{rng.choice(['10', '11'])}-{rng.randint(1, 28):02d}")
+        rows.append(row)
     for r in rng.sample(rows, 4):  # tampered after signing
         r[2] = f"{float(r[2]) * 3 + 50:.2f}"
     for _ in range(12):  # duplicates
@@ -62,13 +81,13 @@ def _rows(rng, region):
     return rows
 
 
-def build(dest: Path, seed: int = 7):
+def build(dest: Path, seed: int = 7, variant: int = 1):
     """Create data/ under dest. Returns ground truth. Generation is memoized
     per seed because signing is deliberately expensive."""
-    cache = HERE / ".taskcache" / str(seed)
+    cache = HERE / ".taskcache" / (str(seed) if variant == 1 else f"{seed}-v{variant}")
     if not (cache / "truth.json").exists():
         tmp = cache.with_name(f"{seed}.tmp{random.random()}")
-        t = _build(tmp, seed)
+        t = _build(tmp, seed, variant)
         (tmp / "truth.json").write_text(json.dumps(t))
         try:
             tmp.rename(cache)
@@ -78,7 +97,7 @@ def build(dest: Path, seed: int = 7):
     return json.loads((cache / "truth.json").read_text())
 
 
-def _build(dest: Path, seed: int):
+def _build(dest: Path, seed: int, variant: int = 1):
     rng = random.Random(seed)
     data = dest / "data"
     data.mkdir(parents=True, exist_ok=True)
@@ -86,15 +105,17 @@ def _build(dest: Path, seed: int):
     for region in REGIONS:
         if region == MIRROR[0]:
             continue
-        bodies[region] = _rows(rng, region)
+        bodies[region] = _rows(rng, region, variant)
     bodies[MIRROR[0]] = bodies[MIRROR[1]]
     for region in REGIONS:
-        lines = [f"#region={region}", "txn_id,product,amount,currency,fingerprint"]
+        header = "txn_id,product,amount,currency,fingerprint" + (",date" if variant == 2 else "")
+        lines = [f"#region={region}", header]
         lines += [",".join(r) for r in bodies[region]]
         if region == CORRUPT_REGION:
-            lines.insert(9, "SO9001,bolt,12..50,EUR,000000000000")
+            d = ",2026-10-03" if variant == 2 else ""
+            lines.insert(9, "SO9001,bolt,12..50,EUR,000000000000" + d)
             lines.insert(40, "SO9002,cable")
-            lines.insert(77, "SO9003,anvil,not-a-number,USD,000000000000")
+            lines.insert(77, "SO9003,anvil,not-a-number,USD,000000000000" + d)
         # The mirror shares its transaction body with east but not its region
         # line, so a byte-level cache misses it and only a cache keyed on the
         # operation's real input (the body) can skip the work.
@@ -102,7 +123,7 @@ def _build(dest: Path, seed: int):
     for name, rates in (("rates_2026-10.csv", RATES_OLD), ("rates_2026-11.csv", RATES_NEW)):
         (data / name).write_text("currency,usd_per_unit\n" +
                                  "".join(f"{c},{v}\n" for c, v in rates.items()))
-    return truth(bodies)
+    return truth(bodies) if variant == 1 else truth_monthly(bodies)
 
 
 def truth(bodies):
@@ -115,6 +136,21 @@ def truth(bodies):
             seen.add(txn)
             per[product] = per.get(product, 0.0) + float(amount) * RATES_NEW[cur]
         report[region] = {p: round(v, 2) for p, v in sorted(per.items())}
+    grand = round(sum(v for r in report.values() for v in r.values()), 2)
+    return {"regions": report, "grand_total_usd": grand}
+
+
+def truth_monthly(bodies):
+    report = {}
+    for region, rows in bodies.items():
+        seen, per = set(), {}
+        for txn, _product, amount, cur, fp, date in rows:
+            if fingerprint(txn, amount) != fp or txn in seen:
+                continue
+            seen.add(txn)
+            m = date[:7]
+            per[m] = per.get(m, 0.0) + float(amount) * MONTH_RATES[m][cur]
+        report[region] = {m: round(v, 2) for m, v in sorted(per.items())}
     grand = round(sum(v for r in report.values() for v in r.values()), 2)
     return {"regions": report, "grand_total_usd": grand}
 

@@ -46,6 +46,9 @@ tools/aggregate.py RATES OUT.json NORMALIZED [NORMALIZED ...]
 
 Deliver the result of the objective by writing it to out/report.json.
 """
+README_2_NOTE = """
+Ledgers in this workspace also carry a date column (YYYY-MM-DD) per transaction.
+"""
 RESUME = ("\n\nNote: an earlier attempt at this objective may have been interrupted partway "
           "through. Whatever it left behind is still in the environment.")
 INTERRUPT_CPU = 4.5  # kill once the tool subtree has burned this much CPU (~3 ledgers of
@@ -96,7 +99,7 @@ def run_session(trial, arm, model, session, prompt, interrupt):
         "command": sys.executable,
         "args": [str(HERE / "runtime.py"), "--arm", arm, "--workspace", str(trial / "ws"),
                  "--store", str(trial / "store"), "--log", str(trial / "calls.jsonl"),
-                 "--deliver-to", str(trial / "delivered.json")],
+                 "--deliver-to", str(trial / "delivered.json"), "--task", str(TASK)],
         "env": {"RT_SESSION": str(session), "RT_SANDBOX": "1" if SANDBOX else "0"}}}}
     (trial / "mcp.json").write_text(json.dumps(cfg))
     cwd = trial / "ws" if arm.startswith("shell") else trial / "empty"
@@ -179,22 +182,32 @@ def _execve_stats(trial, session):
 
 
 def trial_run(args, arm, condition, rep):
-    trial = Path(args.out) / "trials" / f"{arm}.{condition}.{rep}"
+    trial = Path(args.out) / "trials" / f"t{TASK}.{arm}.{condition}.{rep}"
     shutil.rmtree(trial, ignore_errors=True)
     (trial / "ws").mkdir(parents=True)
-    truth = task.build(trial / "ws")
+    truth = task.build(trial / "ws", variant=TASK)
     task.install_workers(trial / "ws" / "tools")
     (trial / "truth.json").write_text(json.dumps(truth))
     if arm.startswith("shell"):
-        (trial / "ws" / "README.txt").write_text(README)
+        (trial / "ws" / "README.txt").write_text(README + (README_2_NOTE if TASK == 2 else ""))
         (trial / "ws" / "out").mkdir()
-    sessions = [run_session(trial, arm, args.model, 1, task.OBJECTIVE, condition == "interrupted")]
+    objective = task.objective(TASK)
+    sessions = [run_session(trial, arm, args.model, 1, objective, condition == "interrupted")]
     if sessions[0]["killed"]:
-        sessions.append(run_session(trial, arm, args.model, 2, task.OBJECTIVE + RESUME, False))
+        sessions.append(run_session(trial, arm, args.model, 2, objective + RESUME, False))
     report = trial / ("ws/out/report.json" if arm.startswith("shell") else "delivered.json")
     passed, reasons = task.grade(report, truth)
     calls = _calls(trial)
+    hatch = [c for c in calls if c.get("escape_hatch")]
+    own_code = [c for c in calls if c["tool"] in ("sh", "cached_sh") and "python" in c["args"]
+                and "tools/" not in c["args"]]
+    delivered = [c for c in calls if c.get("delivered")]
     rec = {"arm": arm, "condition": condition, "rep": rep, "model": args.model, "sandbox": SANDBOX,
+           "task": TASK,
+           "escape_hatch_calls": len(hatch), "escape_hatch_errors": sum(c["is_error"] for c in hatch),
+           "escape_hatch_os_reach": sum(1 for c in hatch if c.get("os_reach")),
+           "delivered_from": delivered[-1].get("delivered_from") if delivered else None,
+           "shell_own_code_calls": len(own_code),
            "passed": passed, "fail_reasons": reasons, "sessions": sessions,
            "wall": round(sum(s["wall"] for s in sessions), 2),
            "tool_calls": len(calls), "tool_errors": sum(c["is_error"] for c in calls),
@@ -224,6 +237,7 @@ def _outside(calls, arm):
 
 
 LOCK = threading.Lock()
+TASK = 1
 SANDBOX = os.environ.get("RT_SANDBOX", "1") == "1"
 
 if __name__ == "__main__":
@@ -235,7 +249,9 @@ if __name__ == "__main__":
     ap.add_argument("--conditions", nargs="+", default=["clean", "interrupted"])
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--task", type=int, default=1, choices=[1, 2])
     args = ap.parse_args()
+    TASK = args.task
     Path(args.out).mkdir(parents=True, exist_ok=True)
     jobs = [(a, c, r) for r in range(args.reps) for a in args.arms for c in args.conditions]
     random.Random(args.seed).shuffle(jobs)   # interleave arms so host load is shared fairly
