@@ -104,18 +104,43 @@ def run_session(trial, arm, model, session, prompt, interrupt):
     (trial / "mcp.json").write_text(json.dumps(cfg))
     cwd = trial / "ws" if arm.startswith("shell") else trial / "empty"
     cwd.mkdir(exist_ok=True)
-    cmd = ["strace", "-f", "--seccomp-bpf", "-e", "trace=execve", "-s", "512", "-qq",
-           "-o", str(trial / f"execve.s{session}.txt"),
-           "claude", "-p", prompt, "--model", model,
+    trace = ["strace", "-f", "--seccomp-bpf", "-e", "trace=execve", "-s", "512", "-qq",
+             "-o", str(trial / f"execve.s{session}.txt")]
+    env = None
+    if AGENT == "codex":
+        (trial / "instructions.md").write_text(SYSTEM)
+        srv = cfg["mcpServers"]["env"]
+        toml_env = "{" + ", ".join(f'{k}="{v}"' for k, v in srv["env"].items()) + "}"
+        cmd = trace + [CODEX_BIN, "exec", "--ephemeral", "--ignore-user-config", "--ignore-rules",
+                       "--skip-git-repo-check", "--json", "-s", "read-only",
+                       *(["-m", model] if model else []),
+                       *[x for f in CODEX_DISABLE for x in ("--disable", f)],
+                       "-c", 'web_search="disabled"', "-c", 'approval_policy="never"',
+                       "-c", "project_doc_max_bytes=0", "-c", 'history.persistence="none"',
+                       "-c", f'model_instructions_file="{trial / "instructions.md"}"',
+                       "-c", f"mcp_servers.env.command={json.dumps(srv['command'])}",
+                       "-c", f"mcp_servers.env.args={json.dumps(srv['args'])}",
+                       "-c", f"mcp_servers.env.env={toml_env}",
+                       "-c", "mcp_servers.env.tool_timeout_sec=200",
+                       *json.loads(os.environ.get("CODEX_EXTRA_ARGS", "[]")),  # test hook
+                       prompt]
+        env = dict(os.environ, CODEX_HOME=CODEX_HOME)
+        p_stream = trial / f"stream.s{session}.jsonl"
+        return _supervise(trial, session, cmd, cwd, env, interrupt, p_stream)
+    cmd = trace + ["claude", "-p", prompt, "--model", model,
            "--output-format", "stream-json", "--verbose",
            "--tools", "", "--strict-mcp-config", "--mcp-config", str(trial / "mcp.json"),
            "--allowedTools", "mcp__env", "--system-prompt", SYSTEM,
            "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence",
            "--max-budget-usd", "2"]
+    return _supervise(trial, session, cmd, cwd, env, interrupt, trial / f"stream.s{session}.jsonl")
+
+
+def _supervise(trial, session, cmd, cwd, env, interrupt, stream_path):
     t0 = time.time()
-    out = open(trial / f"stream.s{session}.jsonl", "w")
-    p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
-                         start_new_session=True)
+    out = open(stream_path, "w")
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                         stderr=subprocess.STDOUT, start_new_session=True)
     killed, timeout, done = False, False, None
     while True:
         pid, status, ru = os.wait4(p.pid, os.WNOHANG)
@@ -147,7 +172,36 @@ def _calls(trial):
     return [json.loads(x) for x in f.read_text().splitlines()] if f.exists() else []
 
 
+def _codex_stream_stats(trial, session):
+    """codex exec --json: usage arrives per completed turn; a killed session has none."""
+    tok = {"in": 0, "cache_read": 0, "cache_write": 0, "out": 0, "exact": False}
+    items, turns = {}, 0
+    for line in (trial / f"stream.s{session}.jsonl").read_text().splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("type") == "turn.completed":
+            u = ev.get("usage", {})
+            turns += 1
+            tok["exact"] = True
+            tok["in"] += u.get("input_tokens", 0) - u.get("cached_input_tokens", 0)
+            tok["cache_read"] += u.get("cached_input_tokens", 0)
+            tok["out"] += u.get("output_tokens", 0)
+        elif ev.get("type") == "item.completed":
+            k = ev.get("item", {}).get("type", "?")
+            items[k] = items.get(k, 0) + 1
+    # Items that are neither our MCP tools nor model text: the interface leaking
+    # (e.g. apply_patch file changes, which the read-only sandbox must reject).
+    foreign = {k: v for k, v in items.items()
+               if k not in ("mcp_tool_call", "agent_message", "reasoning", "todo_list")}
+    return {"tokens": tok, "cost_usd": None, "turns": turns, "result": "completed" if tok["exact"] else None,
+            "codex_items": items, "foreign_items": foreign}
+
+
 def _stream_stats(trial, session):
+    if AGENT == "codex":
+        return _codex_stream_stats(trial, session)
     last = {}
     cost, turns, result, final = None, None, None, None
     for line in (trial / f"stream.s{session}.jsonl").read_text().splitlines():
@@ -202,8 +256,9 @@ def trial_run(args, arm, condition, rep):
     own_code = [c for c in calls if c["tool"] in ("sh", "cached_sh") and "python" in c["args"]
                 and "tools/" not in c["args"]]
     delivered = [c for c in calls if c.get("delivered")]
-    rec = {"arm": arm, "condition": condition, "rep": rep, "model": args.model, "sandbox": SANDBOX,
-           "task": TASK,
+    rec = {"arm": arm, "condition": condition, "rep": rep, "model": args.model or f"{AGENT}-default",
+           "sandbox": SANDBOX,
+           "task": TASK, "agent": AGENT,
            "escape_hatch_calls": len(hatch), "escape_hatch_errors": sum(c["is_error"] for c in hatch),
            "escape_hatch_os_reach": sum(1 for c in hatch if c.get("os_reach")),
            "delivered_from": delivered[-1].get("delivered_from") if delivered else None,
@@ -238,20 +293,32 @@ def _outside(calls, arm):
 
 LOCK = threading.Lock()
 TASK = 1
+AGENT = "claude"
+CODEX_BIN = os.environ.get("CODEX_BIN", "codex")
+CODEX_HOME = os.environ.get("CODEX_HOME_FOR_TRIALS", str(Path.home() / ".codex"))
+# Everything Codex offers besides MCP tools. apply_patch cannot be removed by config
+# (codex-cli 0.167.0); the read-only sandbox and an empty cwd leave it inert, and
+# any use is recorded as a foreign item.
+CODEX_DISABLE = ["shell_tool", "unified_exec", "view_image", "multi_agent", "apps", "browser_use",
+                 "browser_use_external", "computer_use", "sleep_tool", "tool_suggest", "goals",
+                 "hooks", "image_generation", "memories", "plugins"]
 SANDBOX = os.environ.get("RT_SANDBOX", "1") == "1"
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--model", default="claude-haiku-5-5")
+    ap.add_argument("--model", default=None, help="claude: default claude-haiku-5-5; codex: CLI default")
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--arms", nargs="+", default=["shell", "shell_svc", "cap", "cap_svc"])
     ap.add_argument("--conditions", nargs="+", default=["clean", "interrupted"])
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--task", type=int, default=1, choices=[1, 2])
+    ap.add_argument("--agent", default="claude", choices=["claude", "codex"])
     args = ap.parse_args()
-    TASK = args.task
+    TASK, AGENT = args.task, args.agent
+    if AGENT == "claude" and not args.model:
+        args.model = "claude-haiku-5-5"
     Path(args.out).mkdir(parents=True, exist_ok=True)
     jobs = [(a, c, r) for r in range(args.reps) for a in args.arms for c in args.conditions]
     random.Random(args.seed).shuffle(jobs)   # interleave arms so host load is shared fairly
