@@ -68,12 +68,68 @@ Full tables: `results/final/summary.md`. Raw data: `results/final/results.jsonl`
 
 **Assumption most likely wrong:** that these effects survive a task where the capability catalog does *not* fit the job. Here every needed operation existed as a capability. An open-ended task would force an escape hatch, and that is where the abstraction is predicted to leak.
 
+## Task 2: incomplete catalog (112 trials, same models and cells)
+
+The objective asks for USD revenue per region **per month**, with each transaction converted at
+the rate table for its own month. No capability does this. The capability arms get `derive`, an
+escape hatch: the agent writes a Python `run(inputs)` over the decoded contents of states and
+resources. It runs in the same mount jail as the shell and sees only its inputs. Its results are
+marked unverified, and errors return only the line number in the agent's program. Shell arms
+already have general compute. Full tables are in `results/task2/summary.md`.
+
+**Observed:**
+
+1. **The escape hatch became the main path.** Every capability-arm trial that delivered a report
+   delivered one built by `derive`: 55 of 56. The other trial refused to deliver.
+   - Hatch errors were rare: median 0, maximum 1.
+   - No hatch program tried to reach the OS: 0 of 56.
+   - The prediction that the abstraction would leak through errors on the failure path was **not
+     borne out**.
+2. **The leak showed up as cost instead.** On task 1 the capability arms were cheapest; on task 2
+   that advantage shrank or reversed.
+   - Sonnet, clean runs: cap $0.060 vs shell $0.061, and cap_svc was the most expensive at
+     $0.079.
+   - Haiku, clean runs: cap $0.0061 vs shell $0.0080.
+   - Tool calls were about 3× the shell's: 20–34 vs 6–14.
+   - Implementation knowledge came back. Capability agents had to learn the decoded data format
+     and write the same aggregation code a shell agent writes.
+3. **The recovery advantage survived.**
+
+   | trials where the resumed session redid all normalization (≥8 runs) | Haiku | Sonnet |
+   |---|---|---|
+   | shell | 3/8 | 6/6 |
+   | shell_svc | 4/8 | 6/6 |
+   | cap | 8/8 | 6/6 |
+   | cap_svc | **0/8** | **0/6** |
+
+4. **Reliability: 108 of 112 passed, and the 4 failures were small and mixed.**
+   - **cap_svc, interrupted (Haiku):** refused to deliver. The agent judged the mirrored `coastal`
+     ledger to be corrupt data.
+   - **cap, clean (Haiku):** delivered `coastal` as empty, on the same suspicion.
+   - **cap, interrupted (Haiku):** delivered correct numbers wrapped in an extra `{"report": ...}`
+     layer. This arm has no delivery verification. cap_svc's coverage check would have rejected
+     the wrapper.
+   - **shell, interrupted (Haiku):** the 900 s session timeout fired.
+
+   Two of the four come from the mirror I planted for the cache test. That makes it a
+   task-ambiguity defect: an identical ledger under a second region is a reasonable thing for an
+   agent to flag.
+5. **Containment.** 11 of 56 sandboxed shell trials probed outside the workspace, and all were
+   contained. Capability arms, hatch included: 0.
+
+**Revised position:**
+- The benefit of hiding processes depends on the catalog fitting the work. When it doesn't, the
+  agent writes code anyway and pays extra round-trips to do it.
+- The durable benefit is runtime-owned persistent state, which recovery depends on, together
+  with containment by construction.
+- A capability layer with an escape hatch kept both properties here.
+
 ## Artifacts kept as evidence of harness defects
 
 - `results/haiku-unsandboxed/`: no shell containment; workspace escapes.
 - `results/haiku-shell-sandbox-v1-tmpfs/` and `results/sonnet-sandbox-v1-tmpfs/`: the first sandbox wiped `/tmp` between commands, which inflated shell rework (16–36 normalize runs). The shell-arm numbers in these runs are not valid; the cap-arm numbers are reused in `final/`.
 
-## Next layer (not built)
+## Next layer
 
-- A second task family where the capability catalog is incomplete. It would test the escape-hatch prediction and the leak on the failure path.
+- A second agent family: Codex, via `supervisor.py --agent codex` (built, not yet run; needs OpenAI network access and a login).
 - Experiment 3 (agent-invented primitives) is only worth building after that. What would carry over is the matched search budget on the baseline and held-out tasks.
