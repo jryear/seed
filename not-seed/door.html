@@ -1,0 +1,44 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>world</title>
+<style>
+:root{--bg:#f6f5f1;--fg:#1c1b19;--dim:#77736a;--line:#d9d6cc;--hot:#a23b1e;--link:#1d4f8f}
+@media(prefers-color-scheme:dark){:root{--bg:#141413;--fg:#e8e6df;--dim:#8d897f;--line:#33322e;--hot:#e0825f;--link:#8fb8ea}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
+#pulse{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 16px;color:var(--dim);display:flex;gap:16px;flex-wrap:wrap}
+#pulse b{color:var(--fg);font-weight:600}#pulse .hot{color:var(--hot)}
+#out{padding:16px;white-space:pre-wrap;word-break:break-word;min-height:60vh}
+#out .q{color:var(--dim);margin-top:18px;display:block}#out a{color:var(--link);cursor:pointer;text-decoration:underline dotted}
+#out .bad{color:var(--hot)}
+form{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:8px}
+input{flex:1;background:transparent;color:var(--fg);border:1px solid var(--line);padding:9px 10px;font:inherit;border-radius:4px;min-width:0}
+button{font:inherit;padding:9px 14px;border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:4px}
+</style>
+<div id="pulse">…</div><div id="out"></div>
+<form id="f"><input id="i" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="look · help · or anything the world offered you after →"><button>do</button></form>
+<script>
+const out=document.getElementById('out'),inp=document.getElementById('i');let names=[];
+const shape={look:['target'],why:['target'],history:['target'],eval:['src'],suppose:['name','src'],define:['name','src'],claim:['text','src'],counter:['claim','src'],retire:['claim','why'],dispute:['claim','why'],note:['target','text'],intend:['text'],resolve:['pursuit','text'],retry:['held'],withdraw:['held'],grant:['name','role'],help:[]};
+function split(s){const a=[];let m;const re=/"((?:[^"\\]|\\.)*)"|'(\((?:.|\n)*\)|[^\s]+)(?=\s--|\s*$|\s+["'(])|(\S+)/g;
+  // words; "double quoted"; or a '(lisp expr) which runs to its matching paren
+  let i=0;s=s.trim();while(i<s.length){if(/\s/.test(s[i])){i++;continue}
+    if(s[i]=='"'){let j=i+1,b='';while(j<s.length&&s[j]!='"'){if(s[j]=='\\')j++;b+=s[j];j++}a.push(b);i=j+1}
+    else if(s[i]=="'"&&s[i+1]=='('||s[i]=='('){let st=s[i]=="'"?i+1:i,d=0,j=st,str=false;for(;j<s.length;j++){const c=s[j];if(str){if(c=='\\')j++;else if(c=='"')str=false}else if(c=='"')str=true;else if(c=='(')d++;else if(c==')'){d--;if(d==0){j++;break}}}
+      if(s[j]=="'")j++;a.push(s.slice(st,j).replace(/'$/,''));i=j}
+    else if(s[i]=="'"){let j=s.indexOf("'",i+1);if(j<0)j=s.length;a.push(s.slice(i+1,j));i=j+1}
+    else{let j=i;while(j<s.length&&!/\s/.test(s[j]))j++;a.push(s.slice(i,j));i=j}}
+  return a}
+function esc(t){return t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function linkify(t){let h=esc(t);if(!names.length)return h;
+  const re=new RegExp('(^|[\\s"(])('+names.map(n=>n.replace(/[.*+?^${}()|[\]\\\/-]/g,'\\$&')).sort((a,b)=>b.length-a.length).join('|')+')(?=[\\s,:@")]|$)','gm');
+  return h.replace(re,(m,a,n)=>a+'<a data-t="'+n+'">'+n+'</a>')}
+async function run(line){line=line.trim();if(!line)return;if(line.startsWith('ex '))line=line.slice(3);
+  const a=split(line),op=a.shift(),q={op};for(const[f,k]of[['--on','on'],['--for','for']]){const i=a.indexOf(f);if(i>=0){q[k]=a[i+1];a.splice(i,2)}}
+  (shape[op]||[]).forEach((k,i)=>{if(a[i]!==undefined)q[k]=a[i]});
+  let r;try{r=await(await fetch('x',{method:'POST',body:JSON.stringify(q)})).json()}catch(e){r={ok:false,text:'the world is not answering: '+e}}
+  await pulse();out.innerHTML+='<span class="q">› '+esc(line)+'</span><span class="'+(r.ok?'':'bad')+'">'+linkify(r.text)+'</span>\n';window.scrollTo(0,document.body.scrollHeight)}
+async function pulse(){try{const p=await(await fetch('pulse')).json();names=p.names;
+  document.getElementById('pulse').innerHTML='you are <b>human</b> (arbiter) · tick <b>'+p.tick+'</b> · act <b>'+p.act+'</b> · <span class="'+(p.unsettled?'hot':'')+'">'+p.unsettled+' unsettled</span>'}catch(e){document.getElementById('pulse').textContent='the world is not answering'}}
+out.addEventListener('click',e=>{const t=e.target.dataset&&e.target.dataset.t;if(t)run('look '+t)});
+document.getElementById('f').addEventListener('submit',e=>{e.preventDefault();const v=inp.value;inp.value='';run(v)});
+setInterval(pulse,3000);pulse().then(()=>run('look'));
+</script>
