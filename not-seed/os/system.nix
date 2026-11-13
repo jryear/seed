@@ -14,11 +14,13 @@ let
     ("#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./exos.py);
   standin = pkgs.writeScriptBin "exos-model-standin"
     ("#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./model-standin.py);
+  openai = pkgs.writeScriptBin "exos-model-openai"
+    ("#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./model-openai.py);
 in {
   system.stateVersion = "26.11";
   networking.hostName = "exos";
 
-  environment.systemPackages = [ exos standin ]
+  environment.systemPackages = [ exos standin openai ]
     ++ lib.concatMap (a: map pkgOf (a.packages or [ ])) asked
     ++ map (a: toolOf a.tool) (builtins.filter (a: a ? tool) asked);
 

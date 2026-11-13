@@ -5,7 +5,7 @@
   exos undo                go back to before the last ask
   exos check               re-run every check that earlier asks left behind
 """
-import json, os, subprocess, sys
+import json, os, re, subprocess, sys
 
 ASKED = "/var/lib/exos/asked.json"
 MODEL = os.environ.get("EXOS_MODEL") or (
@@ -51,28 +51,46 @@ def show(asked):
         what = ", ".join(a.get("packages", [])) + (f" + tool `{a['tool']['name']}`" if "tool" in a else "")
         print(f"  {i}. \"{a['ask']}\" -> {what}   [check: {a.get('check', 'none')}]")
 
-def ask(sentence):
-    before = load()
-    r = subprocess.run([MODEL], input=json.dumps({"ask": sentence, "asked": before}),
-                       stdout=subprocess.PIPE, text=True)
+def consult(sentence, before, error=None):
+    """Ask the model; return a validated reply or exit with nothing changed."""
+    q = {"ask": sentence, "asked": before, **({"error": error} if error else {})}
+    r = subprocess.run([MODEL], input=json.dumps(q), stdout=subprocess.PIPE, text=True)
     if r.returncode != 0:
         sys.exit(f"the model ({MODEL}) failed; nothing changed")
     try:
         reply = json.loads(r.stdout)
-    except ValueError:
+        pk, tool = reply.get("packages", []), reply.get("tool")
+        assert isinstance(reply, dict) and isinstance(pk, list)
+        assert all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.+-]+", x) for x in pk)
+        assert tool is None or (re.fullmatch(r"[a-z][a-z0-9-]*", tool["name"])
+                                and isinstance(tool["source"], str))
+        assert isinstance(reply.get("check", ""), str)
+        assert reply.get("check") or not (pk or tool), "a change must come with a check"
+    except (ValueError, AssertionError, KeyError, TypeError):
         sys.exit(f"the model ({MODEL}) did not answer in the agreed form; nothing changed")
-    if reply.get("say"):
-        print(reply["say"])
-    if not (reply.get("packages") or reply.get("tool")):
-        return
-    entry = {"ask": sentence, **{k: reply[k] for k in ("packages", "tool", "check") if k in reply}}
-    save(before + [entry])
-    print("rebuilding the machine...")
-    ok, out = rebuild()
-    if not ok:
+    return reply
+
+def ask(sentence):
+    before = load()
+    error = None
+    for attempt in (1, 2):          # one chance to correct a failed rebuild
+        reply = consult(sentence, before, error)
+        if reply.get("say"):
+            print(reply["say"])
+        if not (reply.get("packages") or reply.get("tool")):
+            return
+        entry = {"ask": sentence, **{k: reply[k] for k in ("packages", "tool", "check") if k in reply}}
+        save(before + [entry])
+        print("rebuilding the machine...")
+        ok, out = rebuild()
+        if ok:
+            break
         save(before)
-        print(out[-1500:])
-        sys.exit("the rebuild failed; the machine is unchanged")
+        error = out[-3000:]
+        if attempt == 2:
+            print(out[-1500:])
+            sys.exit("the rebuild failed twice; the machine is unchanged")
+        print("that did not build; asking the model to correct it...")
     bad = failing(before + [entry])
     if bad:
         rebuild("--rollback")

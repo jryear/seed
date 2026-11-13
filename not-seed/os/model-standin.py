@@ -1,7 +1,7 @@
 """Scripted stand-in for a model. It fills the model contract with a lookup
 table so the machine can be exercised without one. It understands nothing.
 
-Contract: JSON on stdin {"ask": str, "asked": [...]}; JSON on stdout with any of
+Contract: JSON on stdin {"ask": str, "asked": [...], "error"?: str}; JSON on stdout with any of
   "say": str, "packages": [nixpkgs attribute names],
   "tool": {"name": str, "source": str}, "check": shell command that must succeed.
 """

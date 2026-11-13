@@ -20,10 +20,22 @@ contract), `pin.nix` (the package set).
 
 ## The model contract
 
-Any executable. JSON on stdin `{"ask", "asked"}`; JSON on stdout with any of
-`say`, `packages` (nixpkgs attribute names), `tool` (`name`, `source`), `check`
-(a shell command that must succeed). Chosen by `EXOS_MODEL` or
-`/var/lib/exos/model`; default is the stand-in.
+Any executable. JSON on stdin `{"ask", "asked", "error"?}`; JSON on stdout with
+any of `say`, `packages` (nixpkgs attribute names), `tool` (`name`, `source`),
+`check` (a shell command that must succeed; required with any change). If a
+rebuild fails, the model is asked once more with the error. Chosen by
+`EXOS_MODEL` or `/var/lib/exos/model`; default is the stand-in.
+
+### A real model (OpenAI)
+
+Start the VM with a host folder holding the key in a file named `omarchy`:
+
+    EXOS_SECRETS=$PWD/../secrets ./result/bin/run-exos-vm
+
+then inside the machine:
+
+    export EXOS_MODEL=exos-model-openai        # model: EXOS_OPENAI_MODEL, default gpt-5.4-mini
+    exos "I want to read PDFs from the command line"
 
 ## Observed (emulated, no hardware virtualisation)
 
@@ -32,10 +44,15 @@ Any executable. JSON on stdin `{"ask", "asked"}`; JSON on stdout with any of
 - tool ask: `biggest /etc` works afterwards
 - an ask whose check fails: rolled back, machine and list unchanged
 - `exos undo`: tool gone, ffmpeg still present, all checks pass
+- real model (gpt-5.4-mini), "I want to read PDFs from the command line": first
+  answer named a package that does not exist; the agent sent the error back, the
+  second answer (`poppler-utils`) built and its check passed. 9 m 11 s for both.
 
 ## Not there yet
 
-- No real model: the stand-in knows three sentences.
+- One real ask through a real model, once. Not a measure of how often it gets
+  things right. The `EXOS_SECRETS` key-file route is untested (here the key was
+  supplied by a proxy instead).
 - No desktop: console only.
 - Generations do not survive a reboot in this VM form (it boots a fixed kernel
   and system directly). Needs a real disk install.
