@@ -3,7 +3,8 @@ table so the machine can be exercised without one. It understands nothing.
 
 Contract: JSON on stdin {"ask": str, "asked": [...], "error"?: str}; JSON on stdout with any of
   "say": str, "packages": [nixpkgs attribute names],
-  "tool": {"name": str, "source": str}, "check": shell command that must succeed.
+  "tool": {"name": str, "source": str}, "check": shell command that must succeed,
+  "open": a program and its arguments, started on the desktop so a window appears.
 """
 import json, sys
 ask = json.load(sys.stdin)["ask"].lower()
@@ -24,8 +25,13 @@ if "video" in ask:
            "say": "(stand-in) video work needs ffmpeg"}
 elif "biggest" in ask or "largest" in ask:
     out = {"packages": ["python3"], "tool": {"name": "biggest", "source": BIGGEST},
-           "check": "biggest /etc | grep -q .",
+           "check": "biggest /etc | grep -q .", "open": "foot --hold biggest /etc",
            "say": "(stand-in) writing a tool `biggest <folder>`"}
+elif "image" in ask or "picture" in ask:
+    # (without SWAYSOCK swayimg is an ordinary window; with it, it covers the prompt)
+    out = {"packages": ["swayimg", "nixos-icons"], "check": "command -v swayimg",
+           "open": "env -u SWAYSOCK swayimg /run/current-system/sw/share/icons/hicolor/256x256/apps/nix-snowflake.png",
+           "say": "(stand-in) an image viewer, showing a picture that is already here"}
 elif "break" in ask:
     out = {"packages": ["hello"], "check": "false",
            "say": "(stand-in) a change whose check cannot pass"}

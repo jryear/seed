@@ -20,9 +20,10 @@ in {
   system.stateVersion = "26.11";
   networking.hostName = "exos";
 
+  # What was asked for never takes the place of something the base provides.
   environment.systemPackages = [ exos standin openai ]
-    ++ lib.concatMap (a: map pkgOf (a.packages or [ ])) asked
-    ++ map (a: toolOf a.tool) (builtins.filter (a: a ? tool) asked);
+    ++ map lib.lowPrio (lib.concatMap (a: map pkgOf (a.packages or [ ])) asked
+      ++ map (a: toolOf a.tool) (builtins.filter (a: a ? tool) asked));
 
   # Each generation carries the description it was built from, and the
   # sources needed to build the next one.

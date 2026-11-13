@@ -19,6 +19,12 @@ Answer with one JSON object and nothing else. Keys, all optional:
               does not exist. Put its interpreter and dependencies in "packages".
   "check":    REQUIRED whenever you give packages or a tool. One shell command that exits 0 only if the machine can now do what was asked.
               Quick, non-interactive, no network, no side effects.
+  "open":     the machine has a graphical desktop (Wayland, sway) that is empty until something
+              is asked for. If what was asked is something to look at or use in a window, give
+              one command that opens that window: a program and plain arguments only, no shell
+              syntax (no quotes, pipes, ;, &, $). For a terminal program or a tool you wrote,
+              use "foot --hold <command>" (foot is installed). May be given without packages or
+              a tool, to open something the machine already has. Omit for non-visual asks.
 If nothing needs to change, or you cannot do it, return only "say"."""
 
 def key():
